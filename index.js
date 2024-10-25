@@ -1,3 +1,5 @@
+// index.js
+
 const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
@@ -41,9 +43,6 @@ app.get('/function3', (req, res) => {
 });
 
 
-// Serve static files after explicit route handling
-app.use(express.static(path.join(__dirname, 'public')));
-
 // POST route to handle Function 1's search (Search Host & Part)
 app.post('/search', async (req, res) => {
     try {
@@ -56,13 +55,22 @@ app.post('/search', async (req, res) => {
         });
         res.json(response.data);
     } catch (error) {
-        if (error.response) {
-            res.status(error.response.status).json(error.response.data);
+        if (error.response && error.response.status === 404) {
+            // Send a structured response for "not found" case
+            res.json({ status: 'not_found', message: 'No results found' });
+        } else if (error.response) {
+            // Send a structured error response
+            res.json({ 
+                status: 'error', 
+                message: error.response.data.message || 'An error occurred',
+                code: error.response.status 
+            });
         } else {
-            res.status(500).json({ error: 'An error occurred' });
+            res.json({ status: 'error', message: 'An error occurred', code: 500 });
         }
     }
 });
+
 
 // POST route to handle Function 2's search (Get Compatible Parts)
 app.post('/getCompatibleParts', async (req, res) => {
@@ -93,17 +101,7 @@ app.post('/getCompatibleParts', async (req, res) => {
 app.post('/getSalesRanking', async (req, res) => {
     try {
         const requestBody = req.body;
-
-        // // Clean up the request body (ensure platform_id is not empty)
-        // if (!requestBody.platform_id) {
-        //     return res.status(400).json({ error: 'Platform ID is required' });
-        // }
-
-        // // Ensure historical is a boolean
-        // requestBody.historical = requestBody.historical === 'true' || requestBody.historical === true;
-
-        // Log the cleaned request body for debugging
-        console.log('Modified Request Body:', requestBody);
+        console.log('Request Body:', requestBody);
 
         // Make the API request
         const response = await axios.post(apiUrl3, requestBody, {

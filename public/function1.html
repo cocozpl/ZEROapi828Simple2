@@ -1,3 +1,5 @@
+<!-- function1.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -62,60 +64,128 @@
     </table>
 
     <script>
-        // Handle the form submission and render the results table
-        document.getElementById('searchForm').onsubmit = async function (event) {
+        // Function to get URL parameters
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // Handle form submission manually
+        async function submitForm(event) {
             event.preventDefault(); // Prevent the default form submission
 
-            const formData = new FormData(this); // Collect form data
-            const data = Object.fromEntries(formData); // Convert form data to an object
+            // Collect form data
+            const platform = document.getElementById('platform').value;
+            const item_type = document.getElementById('item_type').value;
+            const category = document.getElementById('category').value;
+            const platform_id = document.getElementById('platform_id').value;
+            const brand = document.getElementById('brand').value;
+            const historical = document.getElementById('historical').value;
 
-            // Send a POST request to the server with the form data
-            const response = await fetch('/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            });
+            const data = {
+                platform,
+                item_type,
+                category,
+                platform_id,
+                brand,
+                historical
+            };
 
-            // Get the JSON response
-            const result = await response.json();
-            const historical = data.historical === "true"; // Check if historical is true or false
+            try {
+                // Send a POST request with the collected form data
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
 
-            // Render the results in the table
-            const resultsBody = document.getElementById('resultsBody');
-            resultsBody.innerHTML = ''; // Clear previous results
+                // Get the JSON response
+                const result = await response.json();
 
-            if (!historical) {
-                // If historical is false, render as per the current structure
-                result.forEach(item => {
+                // Clear previous results
+                const resultsBody = document.getElementById('resultsBody');
+                resultsBody.innerHTML = '';
+
+                // Check if no results were found
+                if (result.status === 'not_found') {
+                    // Display "No results found" message in the table
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td><img src="${item.doc.image[0]}" alt="Image" width="100"></td>
-                        <td>${item._id.platform_id}</td>
-                        <td>${item.doc.title}</td>
-                        <td>${item.doc.Brand}</td>
-                        <td>${item.doc['Model Name'] || ''}</td>
-                        <td>${item.doc.timestamp}</td>
+                        <td colspan="6" style="text-align: center; padding: 20px;">
+                            <strong>No results found</strong>
+                        </td>
                     `;
                     resultsBody.appendChild(row);
-                });
-            } else {
-                // If historical is true, render based on the new data structure
-                result.forEach(item => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td><img src="${item.image[0]}" alt="Image" width="100"></td>
-                        <td>${item.platform_id}</td>
-                        <td>${item.title}</td>
-                        <td>${item.Brand}</td>
-                        <td>${item['Model Name'] || ''}</td>
-                        <td>${item.timestamp}</td>
-                    `;
-                    resultsBody.appendChild(row);
-                });
+                    return;
+                }
+
+                // If we have results, proceed with normal rendering
+                const historicalFlag = historical === "true";
+
+                if (!historicalFlag) {
+                    // If historical is false, render as per the current structure
+                    result.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><img src="${item.doc.image[0]}" alt="Image" width="100"></td>
+                            <td><a href="/function2?platform_id=${item._id.platform_id}">${item._id.platform_id}</a></td> 
+                            <td>${item.doc.title}</td>
+                            <td>${item.doc.Brand}</td>
+                            <td>${item.doc['Model Name'] || ''}</td>
+                            <td>${item.doc.timestamp}</td>
+                        `;
+                        resultsBody.appendChild(row);
+                    });
+                } else {
+                    // If historical is true, render based on the new data structure
+                    result.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><img src="${item.image[0]}" alt="Image" width="100"></td>
+                            <td><a href="/function2?platform_id=${item.platform_id}">${item.platform_id}</a></td> 
+                            <td>${item.title}</td>
+                            <td>${item.Brand}</td>
+                            <td>${item['Model Name'] || ''}</td>
+                            <td>${item.timestamp}</td>
+                        `;
+                        resultsBody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                // Display error message in the table
+                const resultsBody = document.getElementById('resultsBody');
+                resultsBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 20px; color: red;">
+                            <strong>An error occurred while fetching results</strong>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+    
+        // Automatically fill the platform_id from URL and trigger search
+        window.onload = function () {
+            const platform_id = getUrlParameter('platform_id');
+            const itemType = getUrlParameter('item_type');
+            if (platform_id) {
+                document.getElementById('platform').value = 'Amazon'; // Pre-fill fixed value
+                document.getElementById('item_type').value = 'part'; // Pre-fill fixed value
+                document.getElementById('category').value = 'Robotic_Vacuum'; // Pre-fill fixed value
+                document.getElementById('platform_id').value = platform_id; // Pre-fill platform_id
+                document.getElementById('historical').value = false; // Pre-fill fixed value
+    
+                // Trigger the form submission using the manual fetch method
+                submitForm(new Event('submit'));
             }
         };
+    
+        // Attach manual form submission handler
+        document.getElementById('searchForm').onsubmit = submitForm;
     </script>
+
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Get Sales and Ranking</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Import Chart.js -->
 </head>
 <body>
     <h1>Get Sales and Ranking of the Host</h1>
@@ -42,6 +43,11 @@
         <!-- Results will be dynamically inserted here -->
     </div>
 
+    <canvas id="chartSalesData"></canvas> <!-- Line chart for Home & Kitchen -->
+    <canvas id="chartHomeKitchen"></canvas> <!-- Line chart for Home & Kitchen -->
+    <canvas id="chartRoboticVacuum"></canvas> <!-- Line chart for Robotic Vacuums -->
+    <canvas id="chartRating"></canvas> <!-- Line chart for Ratings -->
+
     <script>
         // Handle form submission and process the response
         document.getElementById('searchForm').onsubmit = async function (event) {
@@ -54,13 +60,24 @@
             // Convert historical to boolean
             // data.historical = data.historical === 'true';
 
-            // Send POST request to the server
+            // Only include the fields the API expects, and send 'None' for missing fields
+            const requestData = {
+                platform: data.platform,        // platform is required
+                category: data.category,        // category is required
+                platform_id: data.platform_id,  // Platform ID is required
+                brand: data.brand || null,      // If brand is not provided, send null
+                item_name: data.item_name || null, // If item_name is not provided, send null
+                model: data.model || null,      // If model is not provided, send null
+                historical: data.historical === 'true'  // Convert historical to boolean            
+            };
+            
+                // Send POST request to the server
             const response = await fetch('/getSalesRanking', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(data),
+                body: JSON.stringify(requestData),
             });
 
             const result = await response.json();
@@ -68,7 +85,7 @@
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = ''; // Clear previous results
 
-            if (result.length > 0) {
+            if (result.length > 0 && !requestData.historical) {
                 result.forEach(item => {
                     const resultContent = `
                         <p><strong>Platform ID:</strong> ${item.platform_id}</p>
@@ -83,11 +100,84 @@
                     `;
                     resultsDiv.insertAdjacentHTML('beforeend', resultContent);
                 });
-            } else {
+            } else if(result.length > 0 && requestData.historical){
+                    // When historical is true, create line charts
+                    const timestamps = result.map(item => item.timestamp);
+                    const salesData = result.map(item => item.sales);
+                    const homeKitchenData = result.map(item => item.sellers_ranking['Home & Kitchen']);
+                    const roboticVacuumData = result.map(item => item.sellers_ranking['Robotic Vacuums']);
+                    const ratingScoreData = result.map(item => item.rating_score);
+                    const ratingCountData = result.map(item => item.rating_count);
+
+                    // Draw each chart with the original data (no need to reverse here)
+                    drawLineChart('chartSalesData', 'Sales销售量', timestamps, salesData);
+                    drawLineChart('chartHomeKitchen', 'Home & Kitchen排名', timestamps, homeKitchenData);
+                    drawLineChart('chartRoboticVacuum', 'Robotic Vacuums排名', timestamps, roboticVacuumData);
+                    drawLineChart('chartRating', 'Ratings', timestamps, ratingScoreData, ratingCountData);
+
+                    const lastItem = result[0];
+                    const productInfo = `
+                        <p>Product Information:</p>
+                        <p>Platform ID: ${lastItem.platform_id}</p>
+                        <p>Brand: ${lastItem.brand}</p>
+                        <p>Model: ${lastItem.model}</p>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', productInfo); // Insert product info at the bottom
+                } else {
                 resultsDiv.innerHTML = '<p>No results found or unexpected response.</p>';
             }
         };
+
+        let charts = {}; // Store chart instances by canvas ID
+
+        function drawLineChart(canvasId, label, labels, data1, data2 = null) {
+            // Create copies of arrays before reversing
+            const reversedLabels = [...labels].reverse();
+            const reversedData1 = [...data1].reverse();
+            const reversedData2 = data2 ? [...data2].reverse() : null;
+
+            // Destroy the previous chart if it exists
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            charts[canvasId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: reversedLabels,
+                    datasets: [
+                        {
+                            label: label,
+                            data: reversedData1,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1,
+                            fill: false
+                        },
+                        reversedData2 ? {
+                            label: `${label} Count`,
+                            data: reversedData2,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            borderWidth: 2,
+                            fill: false
+                        } : null
+                    ].filter(Boolean)
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Timestamp' },
+                        },
+                        y: {
+                            title: { display: true, text: label },
+                        }
+                    }
+                }
+            });
+        }
+        
+
     </script>
 </body>
 </html>
-

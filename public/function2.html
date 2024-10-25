@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Get Compatible Parts</title>
+    <style>
+        .loading {
+            display: none;
+            color: #666;
+            margin: 20px 0;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .details-table img {
+            max-width: 100px;
+            height: auto;
+        }
+        .toggle-view {
+            margin: 10px 0;
+        }
+    </style>
 </head>
 <body>
     <h1>Get Compatible Parts</h1>
@@ -19,60 +40,225 @@
         <button type="submit">Search</button>
     </form>
 
-    <h2>Search Results</h2>
-    <!-- Table to display the search results -->
-    <table border="1" id="resultsTable">
-        <thead>
-            <tr>
-                <th>Platform ID</th>
-                <th>Timestamp</th>
-                <th>Compatibility</th>
-            </tr>
-        </thead>
-        <tbody id="resultsBody">
-            <!-- Results will be dynamically inserted here -->
-        </tbody>
-    </table>
+    <div id="loading" class="loading">
+        Loading compatible parts information...
+    </div>
+
+    <div class="toggle-view">
+        <button id="toggleView" style="display: none;">Toggle Detailed View</button>
+    </div>
+
+    <div class="section">
+        <h2>Basic Results</h2>
+        <!-- Table to display the basic results -->
+        <table border="1" id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Platform ID</th>
+                    <th>Timestamp</th>
+                    <th>Compatibility</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <!-- Basic results will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Detailed Part Information</h2>
+        <!-- Table to display detailed part information -->
+        <table border="1" id="detailsTable" class="details-table">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Platform ID</th>
+                    <th>Title</th>
+                    <th>Brand</th>
+                    <th>Model</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody id="detailsBody">
+                <!-- Detailed results will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
 
     <script>
-        // Handle the form submission and render the results table
-        document.getElementById('searchForm').onsubmit = async function (event) {
-            event.preventDefault(); // Prevent the default form submission
+        let currentView = 'basic';
+        let lastResults = null;
 
-            const platform = document.getElementById('platform').value;
-            const platform_id = document.getElementById('platform_id').value.split('\n').map(id => id.trim()).filter(id => id); // Split platform IDs by line and trim whitespace
+        // Function to get part details from function1's API
+        async function getPartDetails(platformId) {
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        platform: 'Amazon',
+                        item_type: 'part',
+                        category: 'Robotic_Vacuum',
+                        platform_id: platformId,
+                        historical: false
+                    })
+                });
 
-            const data = {
-                platform,
-                platform_id: platform_id.length === 1 ? platform_id[0] : platform_id // Send as array if multiple IDs, string if single
-            };
+                const result = await response.json();
+                if (result.status === 'not_found') {
+                    return null;
+                }
+                return result[0]; // Return first result
+            } catch (error) {
+                console.error('Error fetching part details:', error);
+                return null;
+            }
+        }
 
-            // Send a POST request to the server with the form data
-            const response = await fetch('/getCompatibleParts', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            });
-
-            // Get the JSON response
-            const result = await response.json();
-
-            // Render the results in the table
+        // Function to render basic results
+        function renderBasicResults(results) {
             const resultsBody = document.getElementById('resultsBody');
-            resultsBody.innerHTML = ''; // Clear previous results
+            resultsBody.innerHTML = '';
 
-            result.forEach(item => {
+            results.forEach(item => {
                 const row = document.createElement('tr');
+                const compatibilityLinks = item.compatibility.map(id => 
+                    `<a href="#" onclick="fetchAndShowPartDetails('${id}'); return false;">${id}</a>`
+                ).join(', ');
+
                 row.innerHTML = `
                     <td>${item.platform_id}</td>
                     <td>${item.timestamp}</td>
-                    <td>${item.compatibility.join(', ')}</td>
+                    <td>${compatibilityLinks}</td>
                 `;
                 resultsBody.appendChild(row);
             });
+        }
+
+        // Function to render detailed results
+        function renderDetailedResults(details) {
+            const detailsBody = document.getElementById('detailsBody');
+            detailsBody.innerHTML = '';
+
+            details.forEach(item => {
+                if (!item) return; // Skip null results
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><img src="${item.doc.image[0]}" alt="Image" width="100"></td>
+                    <td>${item._id.platform_id}</td>
+                    <td>${item.doc.title}</td>
+                    <td>${item.doc.Brand}</td>
+                    <td>${item.doc['Model Name'] || ''}</td>
+                    <td>${item.doc.timestamp}</td>
+                `;
+                detailsBody.appendChild(row);
+            });
+        }
+
+        // Function to fetch and show part details
+        async function fetchAndShowPartDetails(compatibleIds) {
+            const loadingDiv = document.getElementById('loading');
+            const detailsTable = document.getElementById('detailsTable');
+            
+            loadingDiv.style.display = 'block';
+            
+            try {
+                const ids = Array.isArray(compatibleIds) ? compatibleIds : [compatibleIds];
+                const details = await Promise.all(ids.map(id => getPartDetails(id)));
+                renderDetailedResults(details.filter(d => d !== null));
+            } catch (error) {
+                console.error('Error:', error);
+                detailsTable.innerHTML = '<tr><td colspan="6" class="error">Error loading part details</td></tr>';
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Handle form submission
+        async function submitForm(event) {
+            event.preventDefault();
+            
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+
+            const platform = document.getElementById('platform').value;
+            const platform_id = document.getElementById('platform_id').value
+                .split('\n')
+                .map(id => id.trim())
+                .filter(id => id);
+
+            const data = {
+                platform,
+                platform_id: platform_id.length === 1 ? platform_id[0] : platform_id
+            };
+
+            try {
+                const response = await fetch('/getCompatibleParts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+                lastResults = result;
+                
+                // Render basic results
+                renderBasicResults(result);
+
+                // Get and render detailed results
+                const allCompatibleIds = result.flatMap(item => item.compatibility);
+                await fetchAndShowPartDetails(allCompatibleIds);
+
+                // Show toggle button
+                document.getElementById('toggleView').style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('resultsBody').innerHTML = `
+                    <tr><td colspan="3" class="error">Error loading results</td></tr>
+                `;
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Handle URL parameters
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // Initialize page
+        window.onload = function () {
+            const platform_id = getUrlParameter('platform_id');
+            if (platform_id) {
+                document.getElementById('platform').value = 'Amazon';
+                document.getElementById('platform_id').value = platform_id;
+                submitForm(new Event('submit'));
+            }
+
+            // Add toggle view handler
+            document.getElementById('toggleView').onclick = function() {
+                const basicTable = document.getElementById('resultsTable');
+                const detailsTable = document.getElementById('detailsTable');
+                
+                if (currentView === 'basic') {
+                    basicTable.style.display = 'none';
+                    detailsTable.style.display = 'table';
+                    currentView = 'detailed';
+                } else {
+                    basicTable.style.display = 'table';
+                    detailsTable.style.display = 'none';
+                    currentView = 'basic';
+                }
+            };
         };
+
+        document.getElementById('searchForm').onsubmit = submitForm;
     </script>
 </body>
 </html>
