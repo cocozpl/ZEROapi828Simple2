@@ -1,4 +1,4 @@
-# ZEROAPI828 Project
+![02D4F589](https://github.com/user-attachments/assets/b4c140c5-df9a-4a72-a1fe-03415172d3b5)# ZEROAPI828 Project
 
 A web application for searching and managing product information, compatibility, and sales rankings.
 
@@ -21,7 +21,7 @@ npm --version
 
 2. Navigate to the project directory:
 ```bash
-cd ZEROAPI828SIMPLE
+cd ZEROapi828Simple2
 ```
 
 3. Install dependencies:
