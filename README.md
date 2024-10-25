@@ -1,4 +1,4 @@
-![02D4F589](https://github.com/user-attachments/assets/b4c140c5-df9a-4a72-a1fe-03415172d3b5)# ZEROAPI828 Project
+# ZEROAPI828 Project
 
 A web application for searching and managing product information, compatibility, and sales rankings.
 
