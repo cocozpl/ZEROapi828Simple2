@@ -7,17 +7,20 @@ const path = require('path');
 
 const app = express();
 
+// API keys
+const apiKey = "A0WLZ2Gke9N7hejjZ2hTTqaJWrncjJA2";
+
 // API configuration for Function 1
-const apiUrl1 = 'http://58.177.151.102:20010/api/v1/backend/item_searching';
-const apiKey1 = 'A0WLZ2Gke9N7hejjZ2hTTqaJWrncjJA2';
+const item_searching_url = "http://192.168.3.147:20001/api/v1/backend/item_information_querying/item_searching";
+
 
 // API configuration for Function 2
-const apiUrl2 = 'http://58.177.151.102:20012/api/v1/backend/get_host_compatible';
-const apiKey2 = 'A0WLZ2Gke9N7hejjZ2hTTqaJWrncjJA2';
+const compatibility = "http://192.168.3.147:20002/api/v1/backend/get_host_compatible";
+
 
 // API configuration for Function 3
-const apiUrl3 = 'http://58.177.151.102:20011/api/v1/backend/sales_ranking';
-const apiKey3 = 'A0WLZ2Gke9N7hejjZ2hTTqaJWrncjJA2'; 
+const sales_querying_url = "http://192.168.3.147:20003/api/v1/backend/sales_querying/sales_querying";
+
 
 // Middleware to parse JSON
 app.use(bodyParser.json());
@@ -47,9 +50,9 @@ app.get('/function3', (req, res) => {
 app.post('/search', async (req, res) => {
     try {
         const searchCriteria = req.body;
-        const response = await axios.post(apiUrl1, searchCriteria, {
+        const response = await axios.post(item_searching_url, searchCriteria, {
             headers: {
-                'API-key': apiKey1,
+                'API-key': apiKey,
                 'Content-Type': 'application/json',
             },
         });
@@ -83,7 +86,7 @@ app.post('/getCompatibleParts', async (req, res) => {
 
         const response = await axios.post(apiUrl2, requestBody, {
             headers: {
-                'API-key': apiKey2,
+                'API-key': apiKey,
                 'Content-Type': 'application/json',
             },
         });
@@ -104,9 +107,9 @@ app.post('/getSalesRanking', async (req, res) => {
         console.log('Request Body:', requestBody);
 
         // Make the API request
-        const response = await axios.post(apiUrl3, requestBody, {
+        const response = await axios.post(sales_querying_url, requestBody, {
             headers: {
-                'API-key': apiKey3,
+                'API-key': apiKey,
                 'Content-Type': 'application/json',
             },
         });
@@ -125,7 +128,8 @@ app.post('/getSalesRanking', async (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+const PORT = 20010;
+const HOST = "0.0.0.0"
+app.listen(PORT, HOST, () => {
+    console.log(`Server is running on http://${HOST}:${PORT}`);
 });

@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Get Sales and Ranking</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Import Chart.js -->
+    <!-- Include DataTables CSS and JS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.1/css/jquery.dataTables.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.13.1/js/jquery.dataTables.js"></script>
 </head>
 <body>
     <h1>Get Sales and Ranking of the Host</h1>
@@ -14,11 +18,17 @@
         <label for="platform">Platform (required):</label>
         <input type="text" id="platform" name="platform" required><br><br>
 
+        <label for="item_type">Item Type (required):</label>
+        <select id="item_type" name="item_type" required>
+            <option value="host">Host</option>
+            <option value="part">Part</option>
+        </select><br><br>
+
         <label for="category">Category (required):</label>
         <input type="text" id="category" name="category" required><br><br>
 
-        <label for="platform_id">Platform ID (required):</label>
-        <input type="text" id="platform_id" name="platform_id" required><br><br>
+        <label for="platform_id">Platform ID (optional):</label>
+        <input type="text" id="platform_id" name="platform_id"><br><br>
 
         <label for="item_name">Item Name (optional):</label>
         <input type="text" id="item_name" name="item_name"><br><br>
@@ -29,18 +39,43 @@
         <label for="model">Model (optional):</label>
         <input type="text" id="model" name="model"><br><br>
 
-        <label for="historical">Historical (optional):</label>
-        <select id="historical" name="historical">
-            <option value="false">False</option>
-            <option value="true">True</option>
+        <label for="sales_min">Sales Range (optional):</label>
+        <input type="number" id="sales_min" name="sales_min" placeholder="Min Sales" step="1">
+        <input type="number" id="sales_max" name="sales_max" placeholder="Max Sales" step="1"><br><br>
+
+        <label for="period">Period (required):</label>
+        <select id="period" name="period" required>
+            <option value="latest">Latest</option>
+            <option value="all">All</option>
+            <option value="interval">Interval</option>
         </select><br><br>
+
+        <label for="period_min">Period Min (YYYY-MM-DD):</label>
+        <input type="date" id="period_min" name="period_min" disabled><br><br>
+
+        <label for="period_max">Period Max (YYYY-MM-DD):</label>
+        <input type="date" id="period_max" name="period_max" disabled><br><br>
 
         <button type="submit">Search</button>
     </form>
 
     <h2>Search Results</h2>
     <div id="results">
-        <!-- Results will be dynamically inserted here -->
+        <!-- Table to display results -->
+        <table id="resultsTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Platform ID</th>
+                    <th>Title</th>
+                    <th>Sales</th>
+                    <th>Price</th>
+                    <th>Rating Count</th>
+                    <th>Rating Score</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <canvas id="chartSalesData"></canvas> <!-- Line chart for Home & Kitchen -->
@@ -49,29 +84,76 @@
     <canvas id="chartRating"></canvas> <!-- Line chart for Ratings -->
 
     <script>
+        // Initialize DataTable
+        $(document).ready(function () {
+            $('#resultsTable').DataTable();
+        });
+
+        // Disable date inputs by default and enable/disable them based on the period selection
+        document.getElementById('period').addEventListener('change', function () {
+            const period = this.value;
+            const periodMin = document.getElementById('period_min');
+            const periodMax = document.getElementById('period_max');
+
+            if (period === 'interval') {
+                periodMin.disabled = false;
+                periodMax.disabled = false;
+            } else {
+                periodMin.disabled = true;
+                periodMax.disabled = true;
+                periodMin.value = '';
+                periodMax.value = '';
+            }
+        });
+
         // Handle form submission and process the response
         document.getElementById('searchForm').onsubmit = async function (event) {
             event.preventDefault(); // Prevent default form submission
 
+
             // Collect form data
             const formData = new FormData(this);
-            // const data = Object.fromEntries(formData.entries());
-            const data = Object.fromEntries(formData)
-            // Convert historical to boolean
-            // data.historical = data.historical === 'true';
+            const data = Object.fromEntries(formData);
+            const period = document.getElementById('period').value;
+            const periodMin = document.getElementById('period_min').value;
+            const periodMax = document.getElementById('period_max').value;
 
-            // Only include the fields the API expects, and send 'None' for missing fields
+            // Prepare sales range as a list if both min and max sales are provided
+            // const salesRange = (data.sales_min && data.sales_max) ? [parseInt(data.sales_min), parseInt(data.sales_max)] : null;
+            // const salesRange = [data.sales_min ? parseInt(data.sales_min) : null, data.sales_max ? parseInt(data.sales_max) : null];
+            let salesRange = [null, null];  // Default if no sales range is provided
+            if (data.sales_min || data.sales_max) {
+                salesRange = [
+                    data.sales_min ? parseInt(data.sales_min) : null,
+                    data.sales_max ? parseInt(data.sales_max) : null
+                ];
+            }
+
+            // Prepare period data as a list
+            let periodData = null;
+            if (period === 'interval') {
+                periodData = [
+                    periodMin || null,  // Use null if period_min is not provided
+                    periodMax || null   // Use null if period_max is not provided
+                ];
+            }
+
+
+            // Prepare requestData object
             const requestData = {
-                platform: data.platform,        // platform is required
-                category: data.category,        // category is required
-                platform_id: data.platform_id,  // Platform ID is required
-                brand: data.brand || null,      // If brand is not provided, send null
-                item_name: data.item_name || null, // If item_name is not provided, send null
-                model: data.model || null,      // If model is not provided, send null
-                historical: data.historical === 'true'  // Convert historical to boolean            
+                platform: data.platform,
+                category: data.category,
+                item_type: data.item_type,
+                platform_id: data.platform_id || null,
+                brand: data.brand || null,
+                item_name: data.item_name || null,
+                model: data.model || null,
+                period: periodData || period,
+                sales_range: salesRange
             };
-            
-                // Send POST request to the server
+            console.log(requestData);
+
+            // Send POST request to the server
             const response = await fetch('/getSalesRanking', {
                 method: 'POST',
                 headers: {
@@ -81,103 +163,31 @@
             });
 
             const result = await response.json();
-            // Display the result in the div
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = ''; // Clear previous results
+            const resultsTable = $('#resultsTable').DataTable(); // Get the DataTable instance
 
-            if (result.length > 0 && !requestData.historical) {
+            // Clear the previous table data
+            resultsTable.clear().draw();
+            // Add new data to the table
+            if (result.length > 0) {
                 result.forEach(item => {
-                    const resultContent = `
-                        <p><strong>Platform ID:</strong> ${item.platform_id}</p>
-                        <p><strong>Brand:</strong> ${item.brand}</p>
-                        <p><strong>Model:</strong> ${item.model}</p>
-                        <p><strong>Sales:</strong> ${item.sales}</p>
-                        <p><strong>Sellers Ranking:</strong> Home & Kitchen: ${item.sellers_ranking['Home & Kitchen']}, Robotic Vacuums: ${item.sellers_ranking['Robotic Vacuums']}</p>
-                        <p><strong>Rating Score:</strong> ${item.rating_score}</p>
-                        <p><strong>Rating Count:</strong> ${item.rating_count}</p>
-                        <p><strong>Timestamp:</strong> ${item.timestamp}</p>
-                        <hr>
-                    `;
-                    resultsDiv.insertAdjacentHTML('beforeend', resultContent);
+                    const length = item.timestamps.length;  // Assuming sales, prices, rating_counts, rating_scores have the same length
+
+                    for (let i = 0; i < length; i++) {
+                        resultsTable.row.add([
+                            item.platform_id || 'N/A',
+                            item.title || 'N/A',
+                            item.sales[i] !== null ? item.sales[i] : 'N/A',
+                            item.prices[i] !== null ? item.prices[i] : 'N/A',
+                            item.rating_counts[i] !== null ? item.rating_counts[i] : 'N/A',
+                            item.rating_scores[i] !== null ? item.rating_scores[i] : 'N/A',
+                            item.timestamps[i] || 'N/A'
+                        ]).draw();
+                    }
                 });
-            } else if(result.length > 0 && requestData.historical){
-                    // When historical is true, create line charts
-                    const timestamps = result.map(item => item.timestamp);
-                    const salesData = result.map(item => item.sales);
-                    const homeKitchenData = result.map(item => item.sellers_ranking['Home & Kitchen']);
-                    const roboticVacuumData = result.map(item => item.sellers_ranking['Robotic Vacuums']);
-                    const ratingScoreData = result.map(item => item.rating_score);
-                    const ratingCountData = result.map(item => item.rating_count);
-
-                    // Draw each chart with the original data (no need to reverse here)
-                    drawLineChart('chartSalesData', 'Sales销售量', timestamps, salesData);
-                    drawLineChart('chartHomeKitchen', 'Home & Kitchen排名', timestamps, homeKitchenData);
-                    drawLineChart('chartRoboticVacuum', 'Robotic Vacuums排名', timestamps, roboticVacuumData);
-                    drawLineChart('chartRating', 'Ratings', timestamps, ratingScoreData, ratingCountData);
-
-                    const lastItem = result[0];
-                    const productInfo = `
-                        <p>Product Information:</p>
-                        <p>Platform ID: ${lastItem.platform_id}</p>
-                        <p>Brand: ${lastItem.brand}</p>
-                        <p>Model: ${lastItem.model}</p>
-                    `;
-                    document.body.insertAdjacentHTML('beforeend', productInfo); // Insert product info at the bottom
-                } else {
-                resultsDiv.innerHTML = '<p>No results found or unexpected response.</p>';
+            } else {
+                alert('No results found or unexpected response.');
             }
         };
-
-        let charts = {}; // Store chart instances by canvas ID
-
-        function drawLineChart(canvasId, label, labels, data1, data2 = null) {
-            // Create copies of arrays before reversing
-            const reversedLabels = [...labels].reverse();
-            const reversedData1 = [...data1].reverse();
-            const reversedData2 = data2 ? [...data2].reverse() : null;
-
-            // Destroy the previous chart if it exists
-            if (charts[canvasId]) {
-                charts[canvasId].destroy();
-            }
-
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            charts[canvasId] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: reversedLabels,
-                    datasets: [
-                        {
-                            label: label,
-                            data: reversedData1,
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 1,
-                            fill: false
-                        },
-                        reversedData2 ? {
-                            label: `${label} Count`,
-                            data: reversedData2,
-                            borderColor: 'rgba(153, 102, 255, 1)',
-                            borderWidth: 2,
-                            fill: false
-                        } : null
-                    ].filter(Boolean)
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Timestamp' },
-                        },
-                        y: {
-                            title: { display: true, text: label },
-                        }
-                    }
-                }
-            });
-        }
-        
-
     </script>
 </body>
 </html>
