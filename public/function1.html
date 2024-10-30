@@ -1,11 +1,15 @@
-<!-- function1.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Host or Part</title>
+    <!-- Include DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+
+    <!-- Include jQuery and DataTables JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
 </head>
 <body>
     <h1>Search Host or Part</h1>
@@ -13,7 +17,9 @@
     <!-- Form to collect user input -->
     <form id="searchForm" action="/search" method="POST">
         <label for="platform">Platform (required):</label>
-        <input type="text" id="platform" name="platform" required><br><br>
+        <select id="platform" name="platform" required>
+            <option value="Amazon">Amazon</option>
+        </select><br><br>
 
         <label for="item_type">Item Type (required):</label>
         <select id="item_type" name="item_type" required>
@@ -22,7 +28,9 @@
         </select><br><br>
 
         <label for="category">Category (required):</label>
-        <input type="text" id="category" name="category" required><br><br>
+        <select id="category" name="category" required>
+            <option value="Robotic_Vacuum">Robotic Vacuum</option>
+        </select><br><br>
 
         <label for="platform_id">Platform ID (optional):</label>
         <input type="text" id="platform_id" name="platform_id"><br><br>
@@ -47,7 +55,7 @@
 
     <h2>Search Results</h2>
     <!-- Table to display the search results -->
-    <table border="1" id="resultsTable">
+    <table border="1" id="resultsTable" class="display">
         <thead>
             <tr>
                 <th>Image</th>
@@ -64,6 +72,9 @@
     </table>
 
     <script>
+        // Initialize DataTable
+        let table = $('#resultsTable').DataTable();
+
         // Function to get URL parameters
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
@@ -107,21 +118,16 @@
 
                 // Get the JSON response
                 const result = await response.json();
+                console.log(result);
 
                 // Clear previous results
-                const resultsBody = document.getElementById('resultsBody');
-                resultsBody.innerHTML = '';
+                table.clear().draw();
 
                 // Check if no results were found
                 if (result.status === 'not_found') {
-                    // Display "No results found" message in the table
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td colspan="6" style="text-align: center; padding: 20px;">
-                            <strong>No results found</strong>
-                        </td>
-                    `;
-                    resultsBody.appendChild(row);
+                    table.row.add([
+                        '<td colspan="6" style="text-align: center; padding: 20px;"><strong>No results found</strong></td>'
+                    ]).draw();
                     return;
                 }
 
@@ -131,63 +137,53 @@
                 if (!historicalFlag) {
                     // If historical is false, render as per the current structure
                     result.forEach(item => {
-                        const row = document.createElement('tr');
-                        console.log(item)
-                        row.innerHTML = `
-                            <td><img src="${item.doc.image[0]}" alt="Image" width="100"></td>
-                            <td><a href="/function2?platform_id=${item.doc.platform_id}">${item.doc.platform_id}</a></td> 
-                            <td>${item.doc.title}</td>
-                            <td>${item.doc.Brand}</td>
-                            <td>${item.doc['Model Name'] || ''}</td>
-                            <td>${item.latestTimestamp}</td>
-                        `;
-                        resultsBody.appendChild(row);
+                        table.row.add([
+                            `<img src="${item.doc.image[0]}" alt="Image" width="100">`,
+                            `<a href="/function2?platform_id=${item.doc.platform_id}">${item.doc.platform_id}</a>`,
+                            item.doc.title,
+                            item.doc.Brand,
+                            item.doc['Model Name'] || '',
+                            item.latestTimestamp
+                        ]).draw(false);
                     });
                 } else {
                     // If historical is true, render based on the new data structure
                     result.forEach(item => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td><img src="${item.image[0]}" alt="Image" width="100"></td>
-                            <td><a href="/function2?platform_id=${item.platform_id}">${item.platform_id}</a></td> 
-                            <td>${item.title}</td>
-                            <td>${item.Brand}</td>
-                            <td>${item['Model Name'] || ''}</td>
-                            <td>${item.timestamp}</td>
-                        `;
-                        resultsBody.appendChild(row);
+                        table.row.add([
+                            `<img src="${item.image[0]}" alt="Image" width="100">`,
+                            `<a href="/function2?platform_id=${item.platform_id}">${item.platform_id}</a>`,
+                            item.title,
+                            item.Brand,
+                            item['Model Name'] || '',
+                            item.timestamp
+                        ]).draw(false);
                     });
                 }
             } catch (error) {
                 console.error('Error:', error);
-                // Display error message in the table
-                const resultsBody = document.getElementById('resultsBody');
-                resultsBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 20px; color: red;">
-                            <strong>An error occurred while fetching results</strong>
-                        </td>
-                    </tr>
-                `;
+                table.clear().draw();
+                table.row.add([
+                    '<td colspan="6" style="text-align: center; padding: 20px; color: red;"><strong>An error occurred while fetching results</strong></td>'
+                ]).draw();
             }
         }
-    
+
         // Automatically fill the platform_id from URL and trigger search
         window.onload = function () {
             const platform_id = getUrlParameter('platform_id');
             const itemType = getUrlParameter('item_type');
             if (platform_id) {
                 document.getElementById('platform').value = 'Amazon'; // Pre-fill fixed value
-                document.getElementById('item_type').value = 'part'; // Pre-fill fixed value
+                document.getElementById('item_type').value = itemType; // Pre-fill fixed value
                 document.getElementById('category').value = 'Robotic_Vacuum'; // Pre-fill fixed value
                 document.getElementById('platform_id').value = platform_id; // Pre-fill platform_id
                 document.getElementById('historical').value = false; // Pre-fill fixed value
-    
+
                 // Trigger the form submission using the manual fetch method
                 submitForm(new Event('submit'));
             }
         };
-    
+
         // Attach manual form submission handler
         document.getElementById('searchForm').onsubmit = submitForm;
     </script>

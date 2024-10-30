@@ -15,7 +15,7 @@ const item_searching_url = "http://192.168.3.147:20001/api/v1/backend/item_infor
 
 
 // API configuration for Function 2
-const compatibility = "http://192.168.3.147:20002/api/v1/backend/get_host_compatible";
+const compatibility_url = "http://192.168.3.147:20002/api/v1/backend/compatibility_querying/compatibility_querying";
 
 
 // API configuration for Function 3
@@ -78,19 +78,16 @@ app.post('/search', async (req, res) => {
 // POST route to handle Function 2's search (Get Compatible Parts)
 app.post('/getCompatibleParts', async (req, res) => {
     try {
-        const { platform, platform_id } = req.body;
-        const requestBody = {
-            platform,
-            platform_id
-        };
+        const requestBody = req.body
 
-        const response = await axios.post(apiUrl2, requestBody, {
+        const response = await axios.post(compatibility_url, requestBody, {
             headers: {
                 'API-key': apiKey,
                 'Content-Type': 'application/json',
             },
         });
         res.json(response.data);
+
     } catch (error) {
         if (error.response) {
             res.status(error.response.status).json(error.response.data);

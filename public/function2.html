@@ -29,13 +29,26 @@
 <body>
     <h1>Get Compatible Parts</h1>
 
-    <!-- Form to collect platform and platform_id input -->
+    <!-- Form to collect platform, platform_id, category, and item_type inputs -->
     <form id="searchForm" action="/getCompatibleParts" method="POST">
         <label for="platform">Platform (required):</label>
-        <input type="text" id="platform" name="platform" required><br><br>
+        <select id="platform" name="platform" required>
+            <option value="Amazon">Amazon</option>
+        </select><br><br>
 
         <label for="platform_id">Platform IDs (required):</label><br>
         <textarea id="platform_id" name="platform_id" rows="5" cols="30" placeholder="Enter one or more platform IDs, one per line" required></textarea><br><br>
+
+        <label for="category">Category (required):</label>
+        <select id="category" name="category" required>
+            <option value="Robotic_Vacuum">Robotic Vacuum</option>
+        </select><br><br>
+
+        <label for="item_type">Item Type (required):</label>
+        <select id="item_type" name="item_type" required>
+            <option value="host">Host</option>
+            <option value="part">Part</option>
+        </select><br><br>
 
         <button type="submit">Search</button>
     </form>
@@ -90,23 +103,26 @@
         let lastResults = null;
 
         // Function to get part details from function1's API
-        async function getPartDetails(platformId) {
+        async function getPartDetails(platformId, platform, category, item_type) {
             try {
+                const request_body = {
+                    platform: platform,
+                    item_type: item_type === "host" ? "part" : item_type === "part" ? "host" : item_type,                    
+                    category: category,
+                    platform_id: platformId,
+                    historical: false
+                };
                 const response = await fetch('/search', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        platform: 'Amazon',
-                        item_type: 'part',
-                        category: 'Robotic_Vacuum',
-                        platform_id: platformId,
-                        historical: false
-                    })
+                    body: JSON.stringify(request_body)
                 });
 
                 const result = await response.json();
+                console.log(result);
+                
                 if (result.status === 'not_found') {
                     return null;
                 }
@@ -121,11 +137,10 @@
         function renderBasicResults(results) {
             const resultsBody = document.getElementById('resultsBody');
             resultsBody.innerHTML = '';
-
             results.forEach(item => {
                 const row = document.createElement('tr');
                 const compatibilityLinks = item.compatibility.map(id => 
-                    `<a href="#" onclick="fetchAndShowPartDetails('${id}'); return false;">${id}</a>`
+                    `<a href="#" onclick="fetchAndShowPartDetails('${id}', '${item.platform}', '${item.category}', '${item.item_type}'); return false;">${id}</a>`
                 ).join(', ');
 
                 row.innerHTML = `
@@ -148,18 +163,18 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><img src="${item.doc.image[0]}" alt="Image" width="100"></td>
-                    <td>${item._id.platform_id}</td>
+                    <td>${item.doc.platform_id}</td>
                     <td>${item.doc.title}</td>
                     <td>${item.doc.Brand}</td>
                     <td>${item.doc['Model Name'] || ''}</td>
-                    <td>${item.doc.timestamp}</td>
+                    <td>${item.latestTimestamp}</td>
                 `;
                 detailsBody.appendChild(row);
             });
         }
 
         // Function to fetch and show part details
-        async function fetchAndShowPartDetails(compatibleIds) {
+        async function fetchAndShowPartDetails(compatibleIds, platform, category, item_type) {
             const loadingDiv = document.getElementById('loading');
             const detailsTable = document.getElementById('detailsTable');
             
@@ -167,7 +182,7 @@
             
             try {
                 const ids = Array.isArray(compatibleIds) ? compatibleIds : [compatibleIds];
-                const details = await Promise.all(ids.map(id => getPartDetails(id)));
+                const details = await Promise.all(ids.map(id => getPartDetails(id, platform, category, item_type)));
                 renderDetailedResults(details.filter(d => d !== null));
             } catch (error) {
                 console.error('Error:', error);
@@ -189,11 +204,18 @@
                 .split('\n')
                 .map(id => id.trim())
                 .filter(id => id);
+            const category = document.getElementById('category').value;
+            const item_type = document.getElementById('item_type').value;
+            const date = 'latest';
 
             const data = {
                 platform,
-                platform_id: platform_id.length === 1 ? platform_id[0] : platform_id
+                platform_id: platform_id.length === 1 ? platform_id[0] : platform_id,
+                category,
+                item_type,
+                date
             };
+            console.log(data);
 
             try {
                 const response = await fetch('/getCompatibleParts', {
@@ -203,8 +225,9 @@
                     },
                     body: JSON.stringify(data),
                 });
-
                 const result = await response.json();
+                console.log(result);
+
                 lastResults = result;
                 
                 // Render basic results
@@ -212,7 +235,7 @@
 
                 // Get and render detailed results
                 const allCompatibleIds = result.flatMap(item => item.compatibility);
-                await fetchAndShowPartDetails(allCompatibleIds);
+                await fetchAndShowPartDetails(allCompatibleIds, platform, category, item_type);
 
                 // Show toggle button
                 document.getElementById('toggleView').style.display = 'block';
@@ -226,39 +249,25 @@
             }
         }
 
-        // Handle URL parameters
-        function getUrlParameter(name) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(name);
-        }
-
         // Initialize page
         window.onload = function () {
-            const platform_id = getUrlParameter('platform_id');
-            if (platform_id) {
-                document.getElementById('platform').value = 'Amazon';
-                document.getElementById('platform_id').value = platform_id;
-                submitForm(new Event('submit'));
-            }
-
-            // Add toggle view handler
-            document.getElementById('toggleView').onclick = function() {
-                const basicTable = document.getElementById('resultsTable');
-                const detailsTable = document.getElementById('detailsTable');
-                
-                if (currentView === 'basic') {
-                    basicTable.style.display = 'none';
-                    detailsTable.style.display = 'table';
-                    currentView = 'detailed';
-                } else {
-                    basicTable.style.display = 'table';
-                    detailsTable.style.display = 'none';
-                    currentView = 'basic';
-                }
-            };
+            document.getElementById('searchForm').onsubmit = submitForm;
         };
 
-        document.getElementById('searchForm').onsubmit = submitForm;
+        document.getElementById('toggleView').onclick = function() {
+            const basicTable = document.getElementById('resultsTable');
+            const detailsTable = document.getElementById('detailsTable');
+            
+            if (currentView === 'basic') {
+                basicTable.style.display = 'none';
+                detailsTable.style.display = 'table';
+                currentView = 'detailed';
+            } else {
+                basicTable.style.display = 'table';
+                detailsTable.style.display = 'none';
+                currentView = 'basic';
+            }
+        };
     </script>
 </body>
 </html>

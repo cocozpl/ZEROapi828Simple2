@@ -110,7 +110,6 @@
         document.getElementById('searchForm').onsubmit = async function (event) {
             event.preventDefault(); // Prevent default form submission
 
-
             // Collect form data
             const formData = new FormData(this);
             const data = Object.fromEntries(formData);
@@ -119,8 +118,6 @@
             const periodMax = document.getElementById('period_max').value;
 
             // Prepare sales range as a list if both min and max sales are provided
-            // const salesRange = (data.sales_min && data.sales_max) ? [parseInt(data.sales_min), parseInt(data.sales_max)] : null;
-            // const salesRange = [data.sales_min ? parseInt(data.sales_min) : null, data.sales_max ? parseInt(data.sales_max) : null];
             let salesRange = [null, null];  // Default if no sales range is provided
             if (data.sales_min || data.sales_max) {
                 salesRange = [
@@ -137,7 +134,6 @@
                     periodMax || null   // Use null if period_max is not provided
                 ];
             }
-
 
             // Prepare requestData object
             const requestData = {
@@ -167,20 +163,31 @@
 
             // Clear the previous table data
             resultsTable.clear().draw();
+
             // Add new data to the table
             if (result.length > 0) {
                 result.forEach(item => {
-                    const length = item.timestamps.length;  // Assuming sales, prices, rating_counts, rating_scores have the same length
+                    // Check if timestamps is a list or a string
+                    const timestamps = Array.isArray(item.timestamps) ? item.timestamps : [item.timestamps];
 
-                    for (let i = 0; i < length; i++) {
+                    // Loop over timestamps if it's a list, or process as a single element
+                    const timestampsLength = timestamps.length;  // Can be a single string or an array
+
+                    for (let i = 0; i < timestampsLength; i++) {
+                        const sales = Array.isArray(item.sales) ? item.sales[i] || 'N/A' : (item.sales !== null ? item.sales : 'N/A');
+                        const price = Array.isArray(item.prices) ? item.prices[i] || 'N/A' : (item.prices !== null ? item.prices : 'N/A');
+                        const ratingCount = Array.isArray(item.rating_counts) ? item.rating_counts[i] || 'N/A' : (item.rating_counts !== null ? item.rating_counts : 'N/A');
+                        const ratingScore = Array.isArray(item.rating_scores) ? item.rating_scores[i] || 'N/A' : (item.rating_scores !== null ? item.rating_scores : 'N/A');
+                        const timestamp = timestamps[i] || 'N/A';
+
                         resultsTable.row.add([
                             item.platform_id || 'N/A',
                             item.title || 'N/A',
-                            item.sales[i] !== null ? item.sales[i] : 'N/A',
-                            item.prices[i] !== null ? item.prices[i] : 'N/A',
-                            item.rating_counts[i] !== null ? item.rating_counts[i] : 'N/A',
-                            item.rating_scores[i] !== null ? item.rating_scores[i] : 'N/A',
-                            item.timestamps[i] || 'N/A'
+                            sales,
+                            price,
+                            ratingCount,
+                            ratingScore,
+                            timestamp
                         ]).draw();
                     }
                 });
